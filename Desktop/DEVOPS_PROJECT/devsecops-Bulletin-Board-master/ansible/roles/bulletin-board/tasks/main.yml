@@ -1,0 +1,120 @@
+---
+# This playbook is used to deploy bulletin-board application based on Docker
+
+# build and push builded images
+
+- name: Log into DockerHub
+  docker_login:
+    username: "{{ docker_hub_login }}"
+    email: "{{ docker_hub_email }}"
+    password: "{{ docker_hub_password }}"
+  tags:
+    - build
+    - preprod
+    - prod
+
+- name: create project directory
+  file:
+    path: "{{ home }}/application-bulletin-board"
+    state: directory
+  tags:
+    - build
+    - preprod
+    - prod
+
+- name: copy devops private key file
+  copy:
+    content: '{{ github_private_key }}'
+    dest: "{{ home }}/.ssh/id_rsa"
+    owner: centos
+  tags:
+    - build
+    - preprod
+    - prod
+
+- name: Retrieve bulletin-board addons source code
+  git:
+    repo: "{{ bulletin_board_source_repo }}"
+    dest: "{{ home }}/application-bulletin-board"
+    accept_hostkey: yes
+    force: yes
+    recursive: no
+    key_file: "{{ home }}/.ssh/id_rsa"
+    version: "{{ bulletin_board_source_branch }}"
+  tags:
+    - build
+    - preprod
+    - prod
+
+- name: Build image
+  docker_image:
+    path: "{{ home }}/application-bulletin-board/bulletin-board-app"
+    name: "{{ docker_hub_login }}/bulletin-board-app"
+    tag: "{{ bulletin_board_image_tag }}"
+  tags:
+    - build
+
+- name: push image to Docker Hub
+  docker_image:
+    path: "{{ home }}/application-bulletin-board/bulletin-board-app"
+    name: "{{ docker_hub_login }}/bulletin-board-app"
+    push: yes
+    tag: "{{ bulletin_board_image_tag }}"
+  tags:
+    - push
+
+- name: create volume database
+  file:
+    path: "{{ volume_database }}"
+    state: directory
+  tags:
+    - preprod
+    - prod
+
+# docker network
+- name: Create docker network to interconnect containers
+  docker_network:
+    name: bb-net
+  tags:
+    - preprod
+    - prod
+
+# deploy db application
+- name: Deploy database
+  docker_container:
+    name: "bb-db"
+    hostname: "db-bulletin-board"
+    image: "{{ docker_hub_login }}/bulletin-board-db:v2"
+    state: "started"
+    restart_policy: "always"
+    volumes:
+      - "{{ volume_database }}:/data/mssql"
+    env:
+      ACCEPT_EULA=Y \
+      MSSQL_SA_PASSWORD=D0cker2*2*
+    networks:
+      - name: "bb-net"
+    ports:
+      - "1433:1433"
+  tags:
+    - preprod
+    - prod
+
+# deploy frontend
+
+- name: Deploy frontend
+  docker_container:
+    name: "bb-app"
+    hostname: "app-bulletin-board"
+    image: "{{ docker_hub_login }}/bulletin-board-app:{{ bulletin_board_image_tag }}"
+    state: "started"
+    restart_policy: "always"
+    networks:
+      - name: "bb-net"
+    volumes:
+      - "{{ home }}/application-bulletin-board/bulletin-board-app:/etc/data/static"
+    ports:
+      - "8080:8080"
+  tags:
+    - preprod
+    - prod

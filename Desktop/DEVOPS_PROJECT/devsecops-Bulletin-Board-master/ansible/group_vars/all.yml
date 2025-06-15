@@ -1,0 +1,17 @@
+---
+
+bulletin_board_source_repo: "git@github.com:juliencoste/devsecops-Bulletin-Board.git"
+bulletin_board_source_branch: "master"
+bulletin_board_image_tag: "CICD"
+
+home: "/home/centos"
+volume_database: "/db-data"
+ip_addr_preprod: "34.239.201.78"
+ip_addr_prod: "52.203.191.113"
+port_app: "8080"
+
+#secret data vaulted
+github_private_key: "{{ vault_github_private_key }}"
+docker_hub_login: "{{ vault_docker_hub_login }}"
+docker_hub_email: "{{ vault_docker_hub_email }}"
+docker_hub_password: "{{ vault_docker_hub_password }}"
